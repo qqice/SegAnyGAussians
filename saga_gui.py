@@ -549,8 +549,10 @@ class GaussianSplattingGUI:
         mean = torch.mean(X, dim=0)
         X = X - mean
         covariance_matrix = (1 / n) * torch.matmul(X.T, X).float()  # An old torch bug: matmul float32->float16, 
-        eigenvalues, eigenvectors = torch.eig(covariance_matrix, eigenvectors=True)
-        eigenvalues = torch.norm(eigenvalues, dim=1)
+        eigenvalues, eigenvectors = torch.linalg.eig(covariance_matrix)
+        eigenvalues = eigenvalues.real
+        eigenvectors = eigenvectors.real
+        eigenvalues = torch.abs(eigenvalues)
         idx = torch.argsort(-eigenvalues)
         eigenvectors = eigenvectors[:, idx]
         proj_mat = eigenvectors[:, 0:n_components]
@@ -690,13 +692,46 @@ class GaussianSplattingGUI:
         if self.save_flag:
             print("Saving ...")
             self.save_flag = False
-            try:
-                os.makedirs("./segmentation_res", exist_ok=True)
-                save_mask = self.engine['scene']._mask == self.engine['scene'].segment_times + 1
-                torch.save(save_mask, f"./segmentation_res/{dpg.get_value('save_name')}.pt")
-            except:
-                with dpg.window(label="Tips"):
-                    dpg.add_text('You should segment the 3D object before save it (click segment3d first).')
+            
+            # Check if segmentation has been performed
+            if self.engine['scene'].segment_times == 0:
+                print("⚠️  WARNING: You haven't segmented yet! Click 'segment3d' first.")
+                with dpg.window(label="⚠️ Warning"):
+                    dpg.add_text('You should segment the 3D object before saving it.')
+                    dpg.add_text('Steps:')
+                    dpg.add_text('1. Click on the object you want to segment')
+                    dpg.add_text('2. Adjust ScoreThres slider')
+                    dpg.add_text('3. Click "segment3d" button')
+                    dpg.add_text('4. Then click "save as" button')
+            else:
+                try:
+                    os.makedirs("./segmentation_res", exist_ok=True)
+                    save_mask = self.engine['scene']._mask == self.engine['scene'].segment_times + 1
+                    
+                    # Print statistics
+                    true_count = save_mask.sum().item()
+                    total_count = len(save_mask)
+                    percentage = true_count / total_count * 100
+                    
+                    print(f"Mask statistics:")
+                    print(f"  - Selected points: {true_count} / {total_count} ({percentage:.2f}%)")
+                    
+                    if percentage > 90:
+                        print(f"⚠️  WARNING: {percentage:.2f}% of points are selected!")
+                        print("    This might indicate incorrect segmentation.")
+                        print("    Consider:")
+                        print("    - Increasing ScoreThres value")
+                        print("    - Clicking on a more specific feature")
+                        print("    - Using preview mode to verify selection")
+                    
+                    save_path = f"./segmentation_res/{dpg.get_value('save_name')}.pt"
+                    torch.save(save_mask, save_path)
+                    print(f"✓ Saved to {save_path}")
+                    
+                except Exception as e:
+                    print(f"✗ Error while saving: {e}")
+                    with dpg.window(label="Error"):
+                        dpg.add_text(f'Error: {str(e)}')
 
         self.render_buffer = None
         render_num = 0
