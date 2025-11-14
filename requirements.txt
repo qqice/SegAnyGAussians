@@ -1,0 +1,5 @@
+submodules/diff-gaussian-rasterization
+submodules/diff-gaussian-rasterization_contrastive_f
+submodules/diff-gaussian-rasterization-depth
+submodules/simple-knn
+third_party/segment-anything
