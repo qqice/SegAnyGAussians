@@ -149,6 +149,9 @@ def render_mask(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Ten
     opacity = pc.get_opacity
 
     mask = pc.get_mask if precomputed_mask is None else precomputed_mask
+    # Convert bool mask to float if needed
+    if mask.dtype == torch.bool:
+        mask = mask.float()
     if len(mask.shape) == 1 or mask.shape[-1] == 1:
         mask = mask.squeeze().unsqueeze(-1).repeat([1,3]).cuda()
 
